@@ -1,0 +1,322 @@
+以下是一个完整的代码示例，包含母项目pom.xml配置和Java调用代码：
+
+## 项目结构
+```
+parent-project/
+├── pom.xml                      # 母项目POM
+├── config/                      # 配置文件目录
+│   └── app-config.properties    # 配置文件
+├── child-module-1/
+│   └── pom.xml
+└── child-module-2/
+    └── pom.xml
+```
+
+## 1. 母项目 pom.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <groupId>com.example</groupId>
+    <artifactId>parent-project</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    
+    <modules>
+        <module>child-module-1</module>
+        <module>child-module-2</module>
+    </modules>
+    
+    <properties>
+        <!-- 定义版本号，会在资源过滤时替换 -->
+        <installer.version>2026.02.02</installer.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+    </properties>
+    
+    <build>
+        <!-- 插件管理：定义插件版本 -->
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.3.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        
+        <!-- 实际插件配置 -->
+        <plugins>
+            <!-- 资源复制插件 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <!-- 注意：这里不需要version，继承自pluginManagement -->
+                <executions>
+                    <execution>
+                        <id>copy-parent-config</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/config</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>*.properties</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <!-- 编译器插件 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+## 2. 配置文件 config/app-config.properties
+
+```properties
+# 应用基本信息
+app.name=MyEnterpriseApplication
+app.description=这是一个企业级应用程序
+
+# 版本信息（由Maven资源过滤自动替换）
+installer.version=${installer.version}
+build.timestamp=${maven.build.timestamp}
+java.version=${java.version}
+
+# 数据库配置
+database.url=jdbc:mysql://localhost:3306/myapp
+database.username=admin
+database.pool.size=20
+
+# 系统配置
+server.port=8080
+log.level=INFO
+cache.enabled=true
+```
+
+## 3. 子模块 pom.xml (child-module-1/pom.xml)
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>parent-project</artifactId>
+        <groupId>com.example</groupId>
+        <version>1.0.0</version>
+    </parent>
+    
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>child-module-1</artifactId>
+    
+    <dependencies>
+        <!-- 如果需要日志 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.6</version>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+## 4. Java代码 - 配置读取工具类
+
+```java
+package com.example.config;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
+/**
+ * 配置管理工具类
+ * 用于读取母项目config目录下的配置文件
+ */
+public class ConfigManager {
+    private static final String CONFIG_FILE = "app-config.properties";
+    private static Properties properties;
+    
+    static {
+        loadProperties();
+    }
+    
+    /**
+     * 加载配置文件
+     */
+    private static void loadProperties() {
+        properties = new Properties();
+        try (InputStream inputStream = ConfigManager.class.getClassLoader()
+                .getResourceAsStream(CONFIG_FILE)) {
+            
+            if (inputStream == null) {
+                throw new RuntimeException("配置文件未找到: " + CONFIG_FILE);
+            }
+            
+            properties.load(inputStream);
+            System.out.println("配置文件加载成功: " + CONFIG_FILE);
+            
+        } catch (IOException e) {
+            throw new RuntimeException("加载配置文件失败", e);
+        }
+    }
+    
+    /**
+     * 获取配置值
+     */
+    public static String getProperty(String key) {
+        return properties.getProperty(key);
+    }
+    
+    /**
+     * 获取配置值，带默认值
+     */
+    public static String getProperty(String key, String defaultValue) {
+        return properties.getProperty(key, defaultValue);
+    }
+    
+    /**
+     * 获取安装器版本
+     */
+    public static String getInstallerVersion() {
+        return getProperty("installer.version");
+    }
+    
+    /**
+     * 获取Java版本信息
+     */
+    public static String getJavaVersion() {
+        return getProperty("java.version", System.getProperty("java.version"));
+    }
+    
+    /**
+     * 获取应用名称
+     */
+    public static String getAppName() {
+        return getProperty("app.name");
+    }
+    
+    /**
+     * 获取所有配置信息（用于调试）
+     */
+    public static void printAllConfig() {
+        System.out.println("=== 应用配置信息 ===");
+        properties.forEach((key, value) -> 
+            System.out.println(key + " = " + value)
+        );
+        System.out.println("=== 运行时Java信息 ===");
+        System.out.println("Java运行时版本: " + System.getProperty("java.version"));
+        System.out.println("Java安装目录: " + System.getProperty("java.home"));
+        System.out.println("操作系统: " + System.getProperty("os.name"));
+    }
+}
+```
+
+## 5. Java代码 - 使用示例
+
+```java
+package com.example;
+
+import com.example.config.ConfigManager;
+
+/**
+ * 配置读取示例
+ */
+public class ConfigExample {
+    public static void main(String[] args) {
+        // 读取单个配置
+        String installerVersion = ConfigManager.getInstallerVersion();
+        String appName = ConfigManager.getAppName();
+        String javaVersion = ConfigManager.getJavaVersion();
+        
+        System.out.println("应用名称: " + appName);
+        System.out.println("安装器版本: " + installerVersion);
+        System.out.println("Java版本: " + javaVersion);
+        System.out.println("数据库URL: " + ConfigManager.getProperty("database.url"));
+        System.out.println("服务器端口: " + ConfigManager.getProperty("server.port"));
+        
+        System.out.println("\n");
+        
+        // 打印所有配置信息
+        ConfigManager.printAllConfig();
+        
+        // 动态组合信息
+        String buildInfo = String.format(
+            "构建信息: %s (Java %s)", 
+            installerVersion, 
+            javaVersion
+        );
+        System.out.println("\n" + buildInfo);
+    }
+}
+```
+
+## 6. 构建和运行
+
+### 构建命令：
+```bash
+# 在母项目根目录执行
+mvn clean install
+```
+
+### 运行结果示例：
+```
+应用名称: MyEnterpriseApplication
+安装器版本: 2026.02.02
+Java版本: 11.0.15
+数据库URL: jdbc:mysql://localhost:3306/myapp
+服务器端口: 8080
+
+=== 应用配置信息 ===
+app.name = MyEnterpriseApplication
+installer.version = 2026.02.02
+database.url = jdbc:mysql://localhost:3306/myapp
+java.version = 11.0.15
+...
+=== 运行时Java信息 ===
+Java运行时版本: 11.0.15
+Java安装目录: /usr/lib/jvm/java-11-openjdk
+操作系统: Linux
+```
+
+## 关键特点
+
+1. **集中配置**: 所有配置在母项目config目录管理
+2. **自动继承**: 子模块自动获得配置复制功能
+3. **属性过滤**: Maven自动替换 `${}` 占位符
+4. **版本统一**: 通过pluginManagement管理插件版本
+5. **易于维护**: 修改配置只需在母项目操作
+
+这样配置后，所有子模块在构建时都会自动从母项目的config目录复制配置文件到各自的 `target/classes` 目录，Java代码可以直接通过类路径读取。
